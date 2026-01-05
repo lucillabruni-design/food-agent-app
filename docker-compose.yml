@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # Main application service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: food-agent-app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://food_user:food_password@db:5432/food_agent_db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    depends_on:
+      - db
+      - redis
+    networks:
+      - food-agent-network
+    command: python manage.py runserver 0.0.0.0:8000
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: food-agent-db
+    environment:
+      - POSTGRES_DB=food_agent_db
+      - POSTGRES_USER=food_user
+      - POSTGRES_PASSWORD=food_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - food-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U food_user -d food_agent_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: food-agent-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - food-agent-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: food-agent-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    networks:
+      - food-agent-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  food-agent-network:
+    driver: bridge
